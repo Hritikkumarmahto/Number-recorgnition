@@ -1,43 +1,57 @@
-import numpy as np
-import matplotlib.pyplot as plt
-import tensorflow as tf
-import os
 import cv2
-mnist = tf.keras.datasets.mnist  # will download dataset from TensorFlow, no need to deal with CSV
+import numpy as np
+from sklearn import datasets
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
 
-(x_train, y_train), (x_test, y_test) = mnist.load_data()
+# Load the digits dataset
+digits = datasets.load_digits()
 
-x_train = tf.keras.utils.normalize(x_train, axis=1)
-x_test = tf.keras.utils.normalize(x_test, axis=1)
+# Split the dataset into features and labels
+X = digits.data
+y = digits.target
 
-# model = tf.keras.models.Sequential()
-# model.add(tf.keras.layers.Flatten(input_shape=(28, 28)))
-# model.add(tf.keras.layers.Dense(128, activation='relu'))
-# model.add(tf.keras.layers.Dense(128, activation='relu'))
-# model.add(tf.keras.layers.Dense(10, activation='softmax'))  # Changed 128 to 10, as there are 10 classes
+# Split the dataset into a training set and a test set
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+# Create a k-Nearest Neighbors classifier
+knn = KNeighborsClassifier(n_neighbors=3)
 
-# model.fit(x_train, y_train, epochs=3)
-# model.save('handwritten.model')
+# Train the classifier on the training data
+knn.fit(X_train, y_train)
 
-model=tf.keras.models.load_model('handwritten.model')
-# loss,accuracy=model.evaluate(x_test,y_test)
-# print(loss) 
-# print(accuracy)
+# Initialize the camera (change the camera index as needed)
+cap = cv2.VideoCapture(0)
 
-image_number=1
-while os.path.isfile(f"digits/digit{image_number}.png"):
-    try:
-        img=cv2.imread(f"digits/digit{image_number}.png")[:,:,0]
-        img=np.invert(np.array([img]))
-        prediction=model.predict(img)
-        print(f"This diogit is probably a{np.argmax(prediction)}")
-        plt.imshow(img[0],cmap=plt.cm.binary)
-        plt.show()
-    except:
-         print("error")
-    finally:
-        image_number +=1
+while True:
+    # Capture a frame from the camera
+    ret, frame = cap.read()
 
+    # Convert the frame to grayscale
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
+    # Resize the frame to 8x8 pixels
+    small_gray = cv2.resize(gray, (8, 8))
+
+    # Threshold and invert the colors
+    _, small_gray = cv2.threshold(small_gray, 128, 255, cv2.THRESH_BINARY_INV)
+
+    # Reshape the frame to match the input shape of the classifier
+    input_image = small_gray.reshape(1, -1)
+
+    # Predict the digit using the trained classifier
+    predicted_digit = knn.predict(input_image)
+
+    # Display the predicted digit on the frame
+    cv2.putText(frame, str(predicted_digit[0]), (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 3)
+
+    # Show the frame
+    cv2.imshow('Digit Recognition', frame)
+
+    # Break the loop if the 'q' key is pressed
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+# Release the camera and close OpenCV windows
+cap.release()
+cv2.destroyAllWindows()
